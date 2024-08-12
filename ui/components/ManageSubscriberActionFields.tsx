@@ -76,7 +76,7 @@ export function ManageSubscriberActionFields({
             </div>
             <FormDescription>
               Default lists to add this user on creation. (Apart from the lists
-              for the ghost blog newsletters) p.e. "New Subscribers"
+              for the ghost blog newsletters) p.e. &quot;New Subscribers&quot;
             </FormDescription>
             <FormMessage />
           </FormItem>

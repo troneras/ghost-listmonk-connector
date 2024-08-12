@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS son_execution_action_logs;

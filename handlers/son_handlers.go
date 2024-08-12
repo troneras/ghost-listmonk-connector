@@ -13,45 +13,52 @@ type SonHandler struct {
 	storage *services.SonStorage
 }
 
-type ListmonkHandler struct {
-	client *services.ListmonkClient
-}
-
 func NewSonHandler(storage *services.SonStorage) *SonHandler {
 	return &SonHandler{storage: storage}
 }
 
-func NewListmonkHandler(client *services.ListmonkClient) *ListmonkHandler {
-	return &ListmonkHandler{client: client}
-}
-
-func (h *ListmonkHandler) GetLists(c *gin.Context) {
-	lists, err := h.client.GetLists()
-	if err != nil {
-		utils.ErrorLogger.Errorf("Failed to get lists: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": lists})
-}
-
-func (h *ListmonkHandler) GetTemplates(c *gin.Context) {
-	templates, err := h.client.GetTemplates()
-	if err != nil {
-		utils.ErrorLogger.Errorf("Failed to get templates: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": templates})
-}
-
 func (h *SonHandler) Create(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		utils.ErrorLogger.Println("User not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	currentUser := user.(*models.User)
+
 	var son models.Son
 	if err := c.ShouldBindJSON(&son); err != nil {
 		utils.ErrorLogger.Errorf("Invalid Son data: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	son.ID = utils.GenerateUUID()
+	son.UserID = currentUser.ID
+
+	// Check user's subscription level and apply limits
+	var maxSons int
+	switch currentUser.SubscriptionLevel {
+	case models.SubscriptionFree:
+		maxSons = 5
+	case models.SubscriptionPremium:
+		maxSons = 20
+	case models.SubscriptionBusiness:
+		maxSons = 100
+	default:
+		maxSons = 1
+	}
+
+	existingSons, err := h.storage.List(currentUser.ID)
+	if err != nil {
+		utils.ErrorLogger.Errorf("Failed to list Sons: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing Sons"})
+		return
+	}
+
+	if len(existingSons) >= maxSons {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Son limit reached for your subscription level"})
 		return
 	}
 
@@ -66,6 +73,15 @@ func (h *SonHandler) Create(c *gin.Context) {
 }
 
 func (h *SonHandler) Get(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		utils.ErrorLogger.Println("User not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	currentUser := user.(*models.User)
+
 	id := c.Param("id")
 	son, err := h.storage.Get(id)
 	if err != nil {
@@ -79,11 +95,26 @@ func (h *SonHandler) Get(c *gin.Context) {
 		return
 	}
 
+	if son.UserID != currentUser.ID {
+		utils.ErrorLogger.Errorf("Unauthorized access to Son: %s", id)
+		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized access to Son"})
+		return
+	}
+
 	utils.InfoLogger.Infof("Retrieved Son: %s", utils.PrettyPrint(son))
 	c.JSON(http.StatusOK, son)
 }
 
 func (h *SonHandler) Update(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		utils.ErrorLogger.Println("User not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	currentUser := user.(*models.User)
+
 	id := c.Param("id")
 	var son models.Son
 	if err := c.ShouldBindJSON(&son); err != nil {
@@ -93,6 +124,7 @@ func (h *SonHandler) Update(c *gin.Context) {
 	}
 
 	son.ID = id
+	son.UserID = currentUser.ID
 	if err := h.storage.Update(son); err != nil {
 		if err == services.ErrSonNotFound {
 			utils.ErrorLogger.Errorf("Son not found for update: %s", id)
@@ -109,8 +141,17 @@ func (h *SonHandler) Update(c *gin.Context) {
 }
 
 func (h *SonHandler) Delete(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		utils.ErrorLogger.Println("User not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	currentUser := user.(*models.User)
+
 	id := c.Param("id")
-	if err := h.storage.Delete(id); err != nil {
+	if err := h.storage.Delete(id, currentUser.ID); err != nil {
 		if err == services.ErrSonNotFound {
 			utils.ErrorLogger.Errorf("Son not found for deletion: %s", id)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Son not found"})
@@ -126,7 +167,16 @@ func (h *SonHandler) Delete(c *gin.Context) {
 }
 
 func (h *SonHandler) List(c *gin.Context) {
-	sons, err := h.storage.List()
+	user, exists := c.Get("user")
+	if !exists {
+		utils.ErrorLogger.Println("User not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	currentUser := user.(*models.User)
+
+	sons, err := h.storage.List(currentUser.ID)
 
 	if err != nil {
 		utils.ErrorLogger.Errorf("Failed to list Sons: %v", err)

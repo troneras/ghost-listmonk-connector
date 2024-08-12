@@ -1,4 +1,5 @@
-"use client";
+// ui/components/Dashboard.tsx
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,31 +13,16 @@ import {
   Legend,
 } from "recharts";
 import { ChartContainer, ChartConfig } from "@/components/ui/chart";
-
-// Mock data - replace with actual API calls in production
-const recentActivity = [
-  {
-    id: 1,
-    action: 'Son "Welcome Email" triggered',
-    timestamp: "2024-08-10T10:30:00Z",
-  },
-  {
-    id: 2,
-    action: 'New Son "Survey Request" created',
-    timestamp: "2024-08-10T09:15:00Z",
-  },
-  {
-    id: 3,
-    action: 'Son "Monthly Newsletter" modified',
-    timestamp: "2024-08-09T16:45:00Z",
-  },
-];
-
-const sonStats = [
-  { name: "Welcome Email", executions: 120, success: 115, failure: 5 },
-  { name: "Survey Request", executions: 80, success: 78, failure: 2 },
-  { name: "Monthly Newsletter", executions: 50, success: 50, failure: 0 },
-];
+import { DashboardSkeleton } from "./DashboardSKeleton";
+import { useRecentActivity } from "@/hooks/useRecentActivity";
+import { useSonStats } from "@/hooks/useSonStats";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const chartConfig = {
   executions: {
@@ -45,7 +31,7 @@ const chartConfig = {
   },
   success: {
     label: "Success",
-    color: "#60a5fa",
+    color: "#F97316",
   },
   failure: {
     label: "Failure",
@@ -53,20 +39,37 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+const timeframeOptions = [
+  { value: "1h", label: "1 Hour" },
+  { value: "6h", label: "6 Hours" },
+  { value: "12h", label: "12 Hours" },
+  { value: "24h", label: "24 Hours" },
+  { value: "168h", label: "1 Week" },
+];
+
 export default function Dashboard() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [timeframe, setTimeframe] = useState("24h");
+  const {
+    activities,
+    loading: activitiesLoading,
+    error: activitiesError,
+  } = useRecentActivity();
+  const {
+    stats,
+    loading: statsLoading,
+    error: statsError,
+  } = useSonStats(timeframe);
 
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => setIsLoading(false), 1000);
-  }, []);
+  if (activitiesLoading || statsLoading) {
+    return <DashboardSkeleton />;
+  }
 
-  if (isLoading) {
-    return <div>Loading...</div>;
+  if (activitiesError || statsError) {
+    return <div>Error loading dashboard data</div>;
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex-1 space-y-4">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -75,27 +78,43 @@ export default function Dashboard() {
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            {recentActivity.map((activity) => (
-              <Alert key={activity.id} className="mb-2">
-                <AlertTitle>{activity.action}</AlertTitle>
-                <AlertDescription>
-                  {new Date(activity.timestamp).toLocaleString()}
-                </AlertDescription>
-              </Alert>
-            ))}
+            {!activities && <div>No recent activity</div>}
+            {activities &&
+              activities.map((activity) => (
+                <Alert key={activity.id} className="mb-2">
+                  <AlertTitle>{activity.action_type}</AlertTitle>
+                  <AlertDescription>
+                    {activity.description}
+                    <br />
+                    {new Date(activity.timestamp).toLocaleString()}
+                  </AlertDescription>
+                </Alert>
+              ))}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Son Performance</CardTitle>
+            <Select value={timeframe} onValueChange={setTimeframe}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select timeframe" />
+              </SelectTrigger>
+              <SelectContent>
+                {timeframeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent>
             <ChartContainer
               config={chartConfig}
               className="min-h-[200px] w-full"
             >
-              <BarChart data={sonStats}>
+              <BarChart data={stats}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />

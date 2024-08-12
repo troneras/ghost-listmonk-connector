@@ -52,3 +52,62 @@ export interface ActionFormProps {
     lists: ListmonkList[];
     templates: ListmonkTemplate[];
 }
+
+export interface Webhook {
+    id: string;
+    endpoint: string;
+    secret: string;
+}
+
+export interface WebhookLog {
+    id: string;
+    user_id: string;
+    method: string;
+    path: string;
+    headers: string;
+    body: string;
+    status_code: number;
+    response_body: string;
+    timestamp: string;
+    duration: number;
+}
+
+export interface SonExecutionLog {
+    id: string;
+    son_id: string;
+    webhook_log_id: string;
+    status: 'pending' | 'success' | 'failure' | 'warning';
+    executed_at: string;
+    error_message: string | null;
+}
+
+export interface ActionExecutionLog {
+    id: string;
+    son_execution_log_id: string;
+    action_type: string;
+    status: string;
+    executed_at: string;
+    error_message: string | null;
+}
+
+export interface Pagination {
+    total: number;
+    limit: number;
+    offset: number;
+    next_offset: number;
+}
+
+export interface RecentActivity {
+    id: string;
+    user_id: string;
+    action_type: string;
+    description: string;
+    timestamp: string;
+}
+
+export interface SonStats {
+    name: string;
+    executions: number;
+    success: number;
+    failure: number;
+}

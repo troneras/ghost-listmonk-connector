@@ -1,0 +1,4 @@
+*.txt
+main
+.env.local
+.env

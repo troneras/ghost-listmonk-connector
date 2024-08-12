@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"time"
+	"fmt"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/troneras/ghost-listmonk-connector/database"
 	"github.com/troneras/ghost-listmonk-connector/models"
 	"github.com/troneras/ghost-listmonk-connector/utils"
 )
@@ -17,59 +17,36 @@ var (
 )
 
 type SonStorage struct {
-	db *sql.DB
+	db                    *sql.DB
+	recentActivityService *RecentActivityService
 }
 
-func NewSonStorage(dbPath string) (*SonStorage, error) {
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		return nil, err
+// Update the NewSonStorage function
+func NewSonStorage(recentActivityService *RecentActivityService) *SonStorage {
+	return &SonStorage{
+		db:                    database.GetDB(),
+		recentActivityService: recentActivityService,
 	}
-
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-
-	storage := &SonStorage{db: db}
-	if err := storage.createTables(); err != nil {
-		return nil, err
-	}
-
-	return storage, nil
-}
-
-func (s *SonStorage) createTables() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS sons (
-			id TEXT PRIMARY KEY,
-			name TEXT,
-			trigger TEXT,
-			delay INTEGER,
-			actions TEXT,
-			created_at DATETIME,
-			updated_at DATETIME
-		)
-	`)
-	return err
 }
 
 func (s *SonStorage) Create(son *models.Son) error {
-	son.ID = utils.GenerateUUID()
-	son.CreatedAt = time.Now()
-	son.UpdatedAt = time.Now()
-
 	actionsJSON, err := json.Marshal(son.Actions)
 	if err != nil {
+		utils.ErrorLogger.Errorf("Failed to marshal actions: %v", err)
 		return err
 	}
 
 	_, err = s.db.Exec(
-		"INSERT INTO sons (id, name, trigger, delay, actions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		son.ID, son.Name, son.Trigger, int64(son.Delay), actionsJSON, son.CreatedAt, son.UpdatedAt,
+		"INSERT INTO sons (id, user_id, name, trigger_event, delay, actions, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+		son.ID, son.UserID, son.Name, son.Trigger, son.Delay, actionsJSON, son.Enabled,
 	)
 	if err != nil {
 		utils.ErrorLogger.Errorf("Failed to create Son: %v", err)
 		return err
+	}
+
+	if err := s.recentActivityService.LogActivity(son.UserID, "son_created", fmt.Sprintf("Created Son: %s", son.Name)); err != nil {
+		utils.ErrorLogger.Printf("Failed to log activity: %v", err)
 	}
 
 	utils.InfoLogger.Infof("Created new Son with ID: %s", son.ID)
@@ -79,12 +56,11 @@ func (s *SonStorage) Create(son *models.Son) error {
 func (s *SonStorage) Get(id string) (models.Son, error) {
 	var son models.Son
 	var actionsJSON []byte
-	var delayInt int64
 
 	err := s.db.QueryRow(
-		"SELECT id, name, trigger, delay, actions, created_at, updated_at FROM sons WHERE id = ?",
+		"SELECT id, user_id, name, trigger_event, delay, actions, enabled, created_at, updated_at FROM sons WHERE id = ?",
 		id,
-	).Scan(&son.ID, &son.Name, &son.Trigger, &delayInt, &actionsJSON, &son.CreatedAt, &son.UpdatedAt)
+	).Scan(&son.ID, &son.UserID, &son.Name, &son.Trigger, &son.Delay, &actionsJSON, &son.Enabled, &son.CreatedAt, &son.UpdatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -94,8 +70,6 @@ func (s *SonStorage) Get(id string) (models.Son, error) {
 		utils.ErrorLogger.Errorf("Failed to get Son: %v", err)
 		return models.Son{}, err
 	}
-
-	son.Delay = models.Duration(time.Duration(delayInt))
 
 	err = json.Unmarshal(actionsJSON, &son.Actions)
 	if err != nil {
@@ -108,16 +82,14 @@ func (s *SonStorage) Get(id string) (models.Son, error) {
 }
 
 func (s *SonStorage) Update(son models.Son) error {
-	son.UpdatedAt = time.Now()
-
 	actionsJSON, err := json.Marshal(son.Actions)
 	if err != nil {
 		return err
 	}
 
 	result, err := s.db.Exec(
-		"UPDATE sons SET name = ?, trigger = ?, delay = ?, actions = ?, updated_at = ? WHERE id = ?",
-		son.Name, son.Trigger, int64(son.Delay), actionsJSON, son.UpdatedAt, son.ID,
+		"UPDATE sons SET name = ?, trigger_event = ?, delay = ?, actions = ?, enabled = ?, updated_at = NOW() WHERE id = ? AND user_id = ?",
+		son.Name, son.Trigger, son.Delay, actionsJSON, son.Enabled, son.ID, son.UserID,
 	)
 	if err != nil {
 		utils.ErrorLogger.Errorf("Failed to update Son: %v", err)
@@ -134,12 +106,16 @@ func (s *SonStorage) Update(son models.Son) error {
 		return ErrSonNotFound
 	}
 
+	if err := s.recentActivityService.LogActivity(son.UserID, "son_updated", fmt.Sprintf("Updated Son: %s", son.Name)); err != nil {
+		utils.ErrorLogger.Printf("Failed to log activity: %v", err)
+	}
+
 	utils.InfoLogger.Infof("Updated Son with ID: %s", son.ID)
 	return nil
 }
 
-func (s *SonStorage) Delete(id string) error {
-	result, err := s.db.Exec("DELETE FROM sons WHERE id = ?", id)
+func (s *SonStorage) Delete(id string, userID string) error {
+	result, err := s.db.Exec("DELETE FROM sons WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		utils.ErrorLogger.Errorf("Failed to delete Son: %v", err)
 		return err
@@ -155,12 +131,16 @@ func (s *SonStorage) Delete(id string) error {
 		return ErrSonNotFound
 	}
 
+	if err := s.recentActivityService.LogActivity(userID, "son_deleted", fmt.Sprintf("Deleted Son: %s", id)); err != nil {
+		utils.ErrorLogger.Printf("Failed to log activity: %v", err)
+	}
+
 	utils.InfoLogger.Infof("Deleted Son with ID: %s", id)
 	return nil
 }
 
-func (s *SonStorage) List() ([]models.Son, error) {
-	rows, err := s.db.Query("SELECT id, name, trigger, delay, actions, created_at, updated_at FROM sons")
+func (s *SonStorage) List(userID string) ([]models.Son, error) {
+	rows, err := s.db.Query("SELECT id, user_id, name, trigger_event, delay, actions, enabled, created_at, updated_at FROM sons WHERE user_id = ?", userID)
 	if err != nil {
 		utils.ErrorLogger.Errorf("Failed to list Sons: %v", err)
 		return nil, err
@@ -171,15 +151,12 @@ func (s *SonStorage) List() ([]models.Son, error) {
 	for rows.Next() {
 		var son models.Son
 		var actionsJSON []byte
-		var delayInt int64
 
-		err := rows.Scan(&son.ID, &son.Name, &son.Trigger, &delayInt, &actionsJSON, &son.CreatedAt, &son.UpdatedAt)
+		err := rows.Scan(&son.ID, &son.UserID, &son.Name, &son.Trigger, &son.Delay, &actionsJSON, &son.Enabled, &son.CreatedAt, &son.UpdatedAt)
 		if err != nil {
 			utils.ErrorLogger.Errorf("Failed to scan Son: %v", err)
 			continue
 		}
-
-		son.Delay = models.Duration(time.Duration(delayInt))
 
 		err = json.Unmarshal(actionsJSON, &son.Actions)
 		if err != nil {
@@ -191,9 +168,9 @@ func (s *SonStorage) List() ([]models.Son, error) {
 	}
 
 	if sons == nil {
-		sons = []models.Son{} // Ensure we always return an array, even if empty
+		sons = []models.Son{}
 	}
 
-	utils.InfoLogger.Infof("Retrieved list of %d Sons", len(sons))
+	utils.InfoLogger.Infof("Retrieved list of %d Sons for user %s", len(sons), userID)
 	return sons, nil
 }

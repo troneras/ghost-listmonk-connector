@@ -1,4 +1,3 @@
-"use client";
 import React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,35 +7,36 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlusCircle } from "lucide-react";
-import { useSons } from "@/hooks/useSons";
-import { useLists } from "@/hooks/useLists";
-import { useTemplates } from "@/hooks/useTemplates";
 import { useCustomToast } from "@/hooks/useCustomToast";
 import { SonDetailsForm } from "./SonDetailsForm";
 import { ActionForm } from "./ActionForm";
 
 // Import or define your schema here
 import { sonSchema } from "@/lib/schemas";
+import { useSonContext } from "@/contexts/SonContext";
+import { useListContext } from "@/contexts/ListContext";
+import { useTemplateContext } from "@/contexts/TemplateContext";
 
 type SonFormValues = z.infer<typeof sonSchema>;
 
 export default function SonCreationForm() {
-  const { createSon } = useSons();
+  const { createSon } = useSonContext();
   const { showToast } = useCustomToast();
   const router = useRouter();
-  const { lists, loading: listsLoading, error: listsError } = useLists();
+  const { lists, loading: listsLoading, error: listsError } = useListContext();
   const {
     templates,
     loading: templatesLoading,
     error: templatesError,
-  } = useTemplates();
+  } = useTemplateContext();
 
   const form = useForm<SonFormValues>({
     resolver: zodResolver(sonSchema),
     defaultValues: {
       name: "",
       trigger: "member_created",
-      delay: 0,
+      delay: "0s",
+      enabled: true,
       actions: [
         {
           type: "send_transactional_email",

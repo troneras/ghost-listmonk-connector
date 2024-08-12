@@ -2,8 +2,9 @@ package models
 
 import (
 	"encoding/json"
-	"errors"
 	"time"
+
+	"github.com/troneras/ghost-listmonk-connector/utils"
 )
 
 type TriggerType string
@@ -26,12 +27,14 @@ const (
 
 type Son struct {
 	ID        string      `json:"id"`
+	UserID    string      `json:"user_id"`
 	Name      string      `json:"name"`
 	Trigger   TriggerType `json:"trigger"`
-	Delay     Duration    `json:"delay"`
+	Delay     string      `json:"delay"`
 	Actions   []Action    `json:"actions"`
 	CreatedAt time.Time   `json:"created_at"`
 	UpdatedAt time.Time   `json:"updated_at"`
+	Enabled   bool        `json:"enabled"`
 }
 
 type Action struct {
@@ -39,30 +42,34 @@ type Action struct {
 	Parameters map[string]any `json:"parameters"`
 }
 
-// Duration is a custom type to handle time.Duration in JSON
-type Duration time.Duration
+//
 
-func (d Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Duration(d).Minutes())
-}
-
-func (d *Duration) UnmarshalJSON(b []byte) error {
-	var v interface{}
-	if err := json.Unmarshal(b, &v); err != nil {
+func (s *Son) UnmarshalJSON(data []byte) error {
+	type Alias Son
+	aux := &struct {
+		*Alias
+		Delay string `json:"delay"`
+	}{
+		Alias: (*Alias)(s),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-	switch value := v.(type) {
-	case float64:
-		*d = Duration(time.Duration(value) * time.Minute)
-		return nil
-	case string:
-		tmp, err := time.ParseDuration(value)
-		if err != nil {
-			return err
-		}
-		*d = Duration(tmp)
-		return nil
-	default:
-		return errors.New("invalid duration")
-	}
+	s.Delay = aux.Delay
+	return nil
+}
+
+func (s Son) MarshalJSON() ([]byte, error) {
+	type Alias Son
+	return json.Marshal(&struct {
+		*Alias
+		Delay string `json:"delay"`
+	}{
+		Alias: (*Alias)(&s),
+		Delay: s.Delay,
+	})
+}
+
+func (s *Son) GetParsedDelay() (time.Duration, error) {
+	return utils.ParseDuration(s.Delay)
 }

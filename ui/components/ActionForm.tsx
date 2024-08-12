@@ -1,4 +1,5 @@
 import React from "react";
+import { UseFormReturn } from "react-hook-form";
 import {
   FormField,
   FormItem,
@@ -14,13 +15,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { CampaignActionFields } from "./CampaignActionFields";
 import { ManageSubscriberActionFields } from "./ManageSubscriberActionFields";
-import { ActionFormProps } from "@/lib/types";
+import { TransactionalEmailActionFields } from "./TransactionalEmailActionFields";
+import { ListmonkList, ListmonkTemplate } from "@/lib/types";
+
+interface ActionFormProps {
+  form: UseFormReturn<any>;
+  index: number;
+  remove: (index: number) => void;
+  lists: ListmonkList[];
+  templates: ListmonkTemplate[];
+}
 
 export function ActionForm({
   form,
@@ -29,8 +38,8 @@ export function ActionForm({
   lists,
   templates,
 }: ActionFormProps) {
-  const actionType = form.watch(`actions.${index}.type`);
-  const trigger = form.watch("trigger");
+  const actionType: string = form.watch(`actions.${index}.type`);
+  const trigger: string = form.watch("trigger");
 
   return (
     <Card className="border border-gray-200">
@@ -55,7 +64,7 @@ export function ActionForm({
             <FormItem>
               <FormLabel>Action Type</FormLabel>
               <Select
-                onValueChange={(value) => {
+                onValueChange={(value: string) => {
                   field.onChange(value);
                   form.setValue(`actions.${index}.parameters`, {});
                 }}
@@ -78,14 +87,18 @@ export function ActionForm({
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <FormMessage />
               {actionType === "manage_subscriber" && (
                 <FormDescription>
-                  Subscriber management automatically adds or removes
-                  subscribers on listmonk and adds to lists based on the trigger
-                  event and newsletters from ghost blog.
+                  <p>
+                    This action will automatically create the subscriber on
+                    listmonk if he doesn't exist already.
+                  </p>
+                  Subscribers will be automatically added or removed to lists
+                  with the same name as the newsletters on Ghost.
                 </FormDescription>
               )}
+
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -99,7 +112,7 @@ export function ActionForm({
           />
         )}
 
-        {actionType === "manage_subscriber" && trigger == "member_created" && (
+        {actionType === "manage_subscriber" && trigger === "member_created" && (
           <ManageSubscriberActionFields
             form={form}
             index={index}
@@ -108,38 +121,10 @@ export function ActionForm({
         )}
 
         {actionType === "send_transactional_email" && (
-          <FormField
-            control={form.control}
-            name={`actions.${index}.parameters`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Parameters</FormLabel>
-                <FormControl>
-                  <Textarea
-                    {...field}
-                    onChange={(e) => {
-                      try {
-                        const parsedValue = JSON.parse(e.target.value);
-                        field.onChange(parsedValue);
-                      } catch (error) {
-                        field.onChange(e.target.value);
-                      }
-                    }}
-                    value={
-                      typeof field.value === "object"
-                        ? JSON.stringify(field.value, null, 2)
-                        : field.value
-                    }
-                    className="font-mono text-sm"
-                    rows={5}
-                  />
-                </FormControl>
-                <FormDescription>
-                  Enter the parameters for the transactional email as JSON.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
+          <TransactionalEmailActionFields
+            form={form}
+            index={index}
+            templates={templates}
           />
         )}
       </CardContent>

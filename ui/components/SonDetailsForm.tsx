@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SonDetailsFormProps } from "@/lib/types";
+import { Switch } from "@/components/ui/switch";
 
 export function SonDetailsForm({ form }: SonDetailsFormProps) {
   return (
@@ -73,18 +74,35 @@ export function SonDetailsForm({ form }: SonDetailsFormProps) {
           name="delay"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Delay (minutes)</FormLabel>
+              <FormLabel>Delay</FormLabel>
               <FormControl>
                 <Input
-                  type="number"
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  placeholder="e.g., 30m, 2h, 1d, 1w"
                 />
               </FormControl>
               <FormDescription>
-                Set a delay before the Son executes its actions.
+                Set a delay before the Son executes its actions. Use format like "30m" for 30 minutes, "2h" for 2 hours, "1d" for 1 day, or "1w" for 1 week.
               </FormDescription>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="enabled"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base">Enabled</FormLabel>
+                <FormDescription>Enable or disable this Son.</FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
             </FormItem>
           )}
         />

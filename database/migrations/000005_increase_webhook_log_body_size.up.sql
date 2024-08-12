@@ -1,0 +1,1 @@
+ALTER TABLE webhook_logs MODIFY COLUMN body LONGTEXT;

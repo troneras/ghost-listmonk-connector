@@ -6,7 +6,6 @@ const actionParametersSchema = z.object({
     lists: z.array(z.number()).optional(),
     template_id: z.number().optional(),
     tags: z.string().optional(),
-    send_now: z.boolean().optional(),
 }).strict().or(z.record(z.any())); // Allow any other properties for flexibility
 
 
@@ -28,8 +27,14 @@ export const sonSchema = z.object({
         'post_published',
         'post_scheduled',
     ]),
-    delay: z.number().min(0, 'Delay must be a positive number'),
+    delay: z.string().refine((val) => {
+        const durationRegex = /^(\d+)\s*(s|m|h|d|w)$/;
+        return durationRegex.test(val);
+    }, {
+        message: "Invalid duration format. Use format like '30m', '2h', '1d', or '1w'.",
+    }).default('0s'),
     actions: z.array(actionSchema).min(1, 'At least one action is required'),
+    enabled: z.boolean().default(true),
     created_at: z.date().optional(),
     updated_at: z.date().optional(),
 });
@@ -43,11 +48,17 @@ export const editableSonSchema = z.object({
         'post_published',
         'post_scheduled',
     ]),
-    delay: z.number().min(0, 'Delay must be a positive number'),
+    delay: z.string().min(2).default('0s').refine((val) => {
+        const durationRegex = /^(\d+)\s*(s|m|h|d|w)$/;
+        return durationRegex.test(val);
+    }, {
+        message: "Invalid duration format. Use format like '30m', '2h', '1d', or '1w'.",
+    }),
     actions: z.array(z.object({
         type: z.enum(['send_transactional_email', 'manage_subscriber', 'create_campaign']),
         parameters: z.record(z.any()),
     })),
+    enabled: z.boolean().default(true),
 });
 
 

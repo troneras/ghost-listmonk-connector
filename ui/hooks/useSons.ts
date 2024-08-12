@@ -1,4 +1,3 @@
-
 // src/hooks/useSons.ts
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -68,8 +67,9 @@ export function useSons() {
     }, []);
 
     useEffect(() => {
-        fetchSons();
+        fetchSons(); // Initial data fetch
     }, [fetchSons]);
 
-    return { sons, loading, error, fetchSons, createSon, updateSon, deleteSon };
+
+    return { sons, setSons, loading, error, fetchSons, createSon, updateSon, deleteSon };
 }
