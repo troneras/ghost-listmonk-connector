@@ -91,7 +91,7 @@ export function ActionForm({
                 <FormDescription>
                   <p>
                     This action will automatically create the subscriber on
-                    listmonk if he doesn't exist already.
+                    listmonk if he doesn&apos;t exist already.
                   </p>
                   Subscribers will be automatically added or removed to lists
                   with the same name as the newsletters on Ghost.

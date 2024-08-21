@@ -57,7 +57,7 @@ const SonDetailPage: NextPageWithExtras = () => {
     defaultValues: {
       name: "",
       trigger: "member_created",
-      delay: 0,
+      delay: "0",
       actions: [],
     },
   });

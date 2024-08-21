@@ -76,13 +76,12 @@ export function SonDetailsForm({ form }: SonDetailsFormProps) {
             <FormItem>
               <FormLabel>Delay</FormLabel>
               <FormControl>
-                <Input
-                  {...field}
-                  placeholder="e.g., 30m, 2h, 1d, 1w"
-                />
+                <Input {...field} placeholder="e.g., 30m, 2h, 1d, 1w" />
               </FormControl>
               <FormDescription>
-                Set a delay before the Son executes its actions. Use format like "30m" for 30 minutes, "2h" for 2 hours, "1d" for 1 day, or "1w" for 1 week.
+                Set a delay before the Son executes its actions. Use format like
+                &quot;30m&quot; for 30 minutes, &quot;2h&quot; for 2 hours,
+                &quot;1d&quot; for 1 day, or &quot;1w&quot; for 1 week.
               </FormDescription>
               <FormMessage />
             </FormItem>
